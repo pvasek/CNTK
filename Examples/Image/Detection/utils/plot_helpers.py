@@ -17,6 +17,7 @@ from cntk import input_variable, Axis
 from utils.nms_wrapper import apply_nms_to_single_image_results
 from utils.rpn.bbox_transform import regress_rois
 import cv2 # pip install opencv-python
+import json
 
 available_font = "arial.ttf"
 try:
@@ -71,28 +72,41 @@ def visualize_detections(img_path, roi_coords, roi_labels, roi_scores,
     imgHeight = int(imgHeight * scale)
     imgWidth = int(imgWidth * scale)
     if imgWidth > imgHeight:
+        # v_border = int((imgWidth - imgHeight)/2)
         h_border = 0
-        v_border = int((imgWidth - imgHeight)/2)
+        v_border = 0
     else:
-        h_border = int((imgHeight - imgWidth)/2)
+        # h_border = int((imgHeight - imgWidth)/2)
+        h_border = 0
         v_border = 0
 
     PAD_COLOR = [103, 116, 123] # [114, 114, 114]
     cv_img = cv2.imread(img_path)
     rgb_img = cv2.cvtColor(cv_img,cv2.COLOR_BGR2RGB)
-    resized = cv2.resize(rgb_img, (imgWidth, imgHeight), interpolation=cv2.INTER_NEAREST)
+    resized = cv2.resize(rgb_img, (imgWidth, imgHeight), interpolation=cv2.INTER_NEAREST)    
     result_img = cv2.copyMakeBorder(resized,v_border,v_border,h_border,h_border,cv2.BORDER_CONSTANT,value=PAD_COLOR)
     rect_scale = 800 / pad_width
 
+    roi_scores = roi_scores[roi_labels > 0]
+    roi_coords = roi_coords[roi_labels > 0]
+    roi_labels = roi_labels[roi_labels > 0]
+
+    if len(roi_scores) > 0:
+        m = np.argmax(roi_scores)
+        roi_scores = roi_scores[[m]]
+        roi_coords = roi_coords[[m]]
+        roi_labels = roi_labels[[m]]
+    
+    print('visualize_detections img_path: {0}, roi_scores: {1}, roi_cords: {2}, roi_labeels: {3}'.format(img_path, np.array_str(roi_scores), np.array_str(roi_coords), np.array_str(roi_labels)))
     assert(len(roi_labels) == len(roi_coords))
-    if roi_scores is not None:
+    if roi_scores is not None and len(roi_scores) > 0:
         assert(len(roi_labels) == len(roi_scores))
         minScore = min(roi_scores)
         if minScore > decision_threshold:
             decision_threshold = minScore * 0.5
 
     # draw multiple times to avoid occlusions
-    for iter in range(0,3):
+    for iter in range(0,2):
         for roiIndex in range(len(roi_coords)):
             label = roi_labels[roiIndex]
             if roi_scores is not None:
@@ -117,7 +131,7 @@ def visualize_detections(img_path, roi_coords, roi_labels, roi_scores,
             if iter == 0 and draw_negative_rois:
                 drawRectangles(result_img, [rect], color=color, thickness=thickness)
             elif iter==1 and label > 0:
-                thickness = 4
+                # thickness = 4
                 drawRectangles(result_img, [rect], color=color, thickness=thickness)
             elif iter == 2 and label > 0:
                 try:
